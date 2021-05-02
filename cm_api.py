@@ -1,3 +1,4 @@
+import datetime
 from urllib.request import Request, urlopen
 from urllib.parse import urlencode
 import hmac
@@ -5,6 +6,8 @@ import hashlib
 import json
 import argparse
 import configparser
+import os
+import shutil
 
 config = configparser.ConfigParser()
 # Reach for config file to read private credentials from.
@@ -19,14 +22,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "-f",
     "--fees",
-    help="Check for current withdrawal fees.",
+    help="Checks for current withdrawal fees.",
     action="store_true"
 )
 parser.add_argument(
     "-d",
     "--dump",
     help=f"""Dumps current config file including your security credentials. A new config file needs to be configured."
-         Combine with cm_api.py -a""",
+         Combine with 'cm_api.py -a' to archive current config file.""",
     action="store_true"
 )
 parser.add_argument(
@@ -38,7 +41,7 @@ parser.add_argument(
 parser.add_argument(
     "-p",
     "--pairs",
-    help="Check for available currency pairs and returns an enumerated list",
+    help="Checks for available currency pairs and returns an enumerated list.",
     action="store_true"
 )
 
@@ -113,7 +116,21 @@ if args.dump:
     print("WIP")
 
 if args.archive:
-    print("WIP")
+    try:
+        cwd = os.getcwd()
+        archpath = os.path.join(cwd, "config_archive")
+        os.mkdir(archpath)
+    except FileExistsError:
+        print(f"""Skipping mkdir. Directory already exists.""")
+        pass
+    now_raw = datetime.datetime.now()
+    now = now_raw.strftime("%Y-%m-%d_%H:%M:%S")
+    shutil.move(
+        "config.yaml", os.path.join(
+            archpath, str(now)+"_config.yaml"
+        )
+    )
+    print(f"""Config file succesfully archived to {archpath}""")
 
 if args.pairs:
     # Requests all available currency pairs through coinmate api.
