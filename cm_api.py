@@ -15,6 +15,35 @@ privateKey = config.get("DEFAULT", "privateKey")
 clientID = config.get("DEFAULT", "clientID")
 nonce = config.get("DEFAULT", "nonce")
 
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "-f",
+    "--fees",
+    help="Check for current withdrawal fees.",
+    action="store_true"
+)
+parser.add_argument(
+    "-d", "--dump",
+    help="Dumps current config file including your security credentials.A new config file needs to be configured.",
+    action="store_true"
+)
+parser.add_argument(
+    "-a",
+    "--archive",
+    help="Archives current config file.",
+    action="store_true"
+)
+parser.add_argument(
+    "-c",
+    help="Changes path to config file."
+)
+parser.add_argument(
+    "-p",
+    "--pairs",
+    help="Check for available currency pairs and returns an enumerated list",
+    action="store_true"
+)
+
 def startup():
     #starts the program, creates configuration file
     try:
