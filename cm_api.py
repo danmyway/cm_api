@@ -9,16 +9,17 @@ import configparser
 import os
 import shutil
 
-config = configparser.ConfigParser()
-# Reach for config file to read private credentials from.
-config.read('config.yaml')
-
-apiKey = config.get("DEFAULT", "apiKey")
-privateKey = config.get("DEFAULT", "privateKey")
-clientID = config.get("DEFAULT", "clientID")
-nonce = config.get("DEFAULT", "nonce")
+cwd = os.getcwd()
+configfile = "config.yaml"
+logfile = "log.txt"
 
 parser = argparse.ArgumentParser()
+parser.add_argument(
+    "-i",
+    "--initiate",
+    help=f"""Initiates the script and creates configuration file in {cwd} for further usage.""",
+    action="store_true"
+)
 parser.add_argument(
     "-f",
     "--fees",
@@ -28,8 +29,9 @@ parser.add_argument(
 parser.add_argument(
     "-d",
     "--dump",
-    help=f"""Dumps current config file including your security credentials. A new config file needs to be configured."
-         Combine with 'cm_api.py -a' to archive current config file.""",
+    help="""***WIP***
+    Dumps current config file including your security credentials. A new config file needs to be configured."
+    Combine with 'cm_api.py -a' to archive current config file.""",
     action="store_true"
 )
 parser.add_argument(
@@ -47,33 +49,46 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+
 def startup():
-    #starts the program, creates configuration file
+    # Starts the program, creates configuration file
     try:
-        with open(f"config.yaml", "x") as conf:
-            conf.write(f"[DEFAULT]\napiKey = \nprivateKey = \n clientID = \nnonce = 0")
+        with open(configfile, "x") as conf:
+            conf.write("[DEFAULT]\napiKey = \nprivateKey = \nclientID = ")
     except FileExistsError:
         print("Creating config file skipped. Config file already exists.")
+        raise FileExistsError
+
+
+def readconfig():
+    config = configparser.ConfigParser()
+    # Reach for config file to read private credentials from.
+    config.read(configfile)
+
+    apiKey = config.get("DEFAULT", "apiKey")
+    privateKey = config.get("DEFAULT", "privateKey")
+    clientID = config.get("DEFAULT", "clientID")
+
+    return apiKey, privateKey, clientID
+
 
 def log_count():
-    # Creates log.txt file to store no. of usages for correct nonce count.
-    count = ""
+    # Creates log.txt file to store no. of usages for correct nonce value.
+    count = 0
     try:
-        with open("log.txt") as log_file:  # open file in read mode
+        with open(logfile) as log_file:  # open file in read mode
             count_str = log_file.read()
             count = int(count_str)
+        with open(logfile, "w") as log_file:  # open file again but in write mode
+            count = int(count) + 1  # increase the count value by 1
+            log_file.write(str(count))  # write count to file
 
     except FileNotFoundError:
         print("There is no log file.")
     except PermissionError:
-        print("You are not permitted to read this file.")
+        print("You are not permitted to handle this file.")
     except ValueError:
         print("Log value needs to be integer.")
-
-    try:
-        with open("log.txt", "w") as log_file: # open file again but in write mode
-            count = int(count) + 1  # increase the count value by 1
-            log_file.write(str(count))  # write count to file
 
     finally:
         return count
@@ -81,14 +96,30 @@ def log_count():
 
 nonce = log_count()
 
+
 def createSignature(clientId, apiKey, privateKey, nonce):
+    apiKey, privateKey, clientID = readconfig()
     message = str(nonce) + str(clientId) + apiKey
     signature = hmac.new(privateKey.encode("utf-8"), message.encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
     return signature.upper()
 
+
+if args.initiate:
+    try:
+        startup()
+    except FileExistsError:
+        print("Nothing to do! Configuration file already created.")
+    else:
+        print(
+            f"""Initialization finalized.
+            \nPlease visit https://coinmate.io/pages/secured/accountAPI.page to generate your API key.
+            \nThen assign your credentials to {cwd}/{configfile}
+""")
+
+
 if args.fees:
-    # Use startup() to create config file.
-    startup()
+    # Unpack tuple returned from readconfig() containing configfile credentials
+    apiKey, privateKey, clientID = readconfig()
     # Assign and encode signature to communicate with api services.
     params = {
         "clientId": clientID,
@@ -109,28 +140,28 @@ if args.fees:
     if isinstance(response_body["data"], dict):
         low_fee = format(response_body["data"]["low"], '.8f')
         high_fee = format(response_body["data"]["high"], '.8f')
-        print(f"""Current low fee is {low_fee}.
-        High priority fee is {high_fee}.""")
+        print(f"Current low fee is {low_fee}.\nHigh priority fee is {high_fee}.")
 
 if args.dump:
     print("WIP")
 
+
 if args.archive:
     try:
-        cwd = os.getcwd()
         archpath = os.path.join(cwd, "config_archive")
         os.mkdir(archpath)
     except FileExistsError:
-        print(f"""Skipping mkdir. Directory already exists.""")
+        print(f"Skipping mkdir. Directory already exists.")
         pass
     now_raw = datetime.datetime.now()
     now = now_raw.strftime("%Y-%m-%d_%H:%M:%S")
+    rename_config = f"{now:s}_{configfile}"
     shutil.move(
-        "config.yaml", os.path.join(
-            archpath, str(now)+"_config.yaml"
+        configfile, os.path.join(
+            archpath, rename_config
         )
     )
-    print(f"""Config file succesfully archived to {archpath}""")
+    print(f"Config file succesfully archived to {archpath}/{rename_config}")
 
 if args.pairs:
     # Requests all available currency pairs through coinmate api.
