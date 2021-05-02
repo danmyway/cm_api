@@ -7,6 +7,7 @@ import argparse
 import configparser
 
 config = configparser.ConfigParser()
+# Reach for config file to read private credentials from.
 config.read('config.yaml')
 
 apiKey = config.get("DEFAULT", "apiKey")
@@ -22,8 +23,10 @@ parser.add_argument(
     action="store_true"
 )
 parser.add_argument(
-    "-d", "--dump",
-    help="Dumps current config file including your security credentials.A new config file needs to be configured.",
+    "-d",
+    "--dump",
+    help=f"""Dumps current config file including your security credentials. A new config file needs to be configured."
+         Combine with cm_api.py -a""",
     action="store_true"
 )
 parser.add_argument(
@@ -33,31 +36,29 @@ parser.add_argument(
     action="store_true"
 )
 parser.add_argument(
-    "-c",
-    help="Changes path to config file."
-)
-parser.add_argument(
     "-p",
     "--pairs",
     help="Check for available currency pairs and returns an enumerated list",
     action="store_true"
 )
 
+args = parser.parse_args()
+
 def startup():
     #starts the program, creates configuration file
     try:
         with open(f"config.yaml", "x") as conf:
-            conf.write(f"apiKey = \nprivateKey = \n clientID = \nnonce = 0")
+            conf.write(f"[DEFAULT]\napiKey = \nprivateKey = \n clientID = \nnonce = 0")
     except FileExistsError:
         print("Creating config file skipped. Config file already exists.")
 
 def log_count():
+    # Creates log.txt file to store no. of usages for correct nonce count.
     count = ""
     try:
-        log_file = open("log.txt")  # open file in read mode
-        count_str = log_file.read()
-        count = int(count_str)
-        log_file.close()  # close file
+        with open("log.txt") as log_file:  # open file in read mode
+            count_str = log_file.read()
+            count = int(count_str)
 
     except FileNotFoundError:
         print("There is no log file.")
@@ -67,10 +68,9 @@ def log_count():
         print("Log value needs to be integer.")
 
     try:
-        log_file = open("log.txt", "w")  # open file again but in write mode
-        count = int(count) + 1  # increase the count value by 1
-        log_file.write(str(count))  # write count to file
-        log_file.close()  # close file
+        with open("log.txt", "w") as log_file: # open file again but in write mode
+            count = int(count) + 1  # increase the count value by 1
+            log_file.write(str(count))  # write count to file
 
     finally:
         return count
@@ -83,27 +83,57 @@ def createSignature(clientId, apiKey, privateKey, nonce):
     signature = hmac.new(privateKey.encode("utf-8"), message.encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
     return signature.upper()
 
+if args.fees:
+    # Use startup() to create config file.
+    startup()
+    # Assign and encode signature to communicate with api services.
+    params = {
+        "clientId": clientID,
+        "nonce": str(nonce),
+        "signature": createSignature(clientID, apiKey, privateKey, nonce)
+    }
 
-params = {
-    "clientId": clientID,
-    "nonce": str(nonce),
-    "signature": createSignature(clientID, apiKey, privateKey, nonce)
-}
+    values = urlencode(params).encode("utf-8")
 
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded'
+    }
+    request = Request('https://coinmate.io/api/bitcoinWithdrawalFees', data=values, headers=headers)
+    # Format json output from api service to human-readable format.
+    response_body_json = urlopen(request).read()
+    response_body = json.loads(response_body_json)
 
-values = urlencode(params).encode("utf-8")
+    if isinstance(response_body["data"], dict):
+        low_fee = format(response_body["data"]["low"], '.8f')
+        high_fee = format(response_body["data"]["high"], '.8f')
+        print(f"""Current low fee is {low_fee}.
+        High priority fee is {high_fee}.""")
 
-headers = {
-  'Content-Type': 'application/x-www-form-urlencoded'
-}
-request = Request('https://coinmate.io/api/bitcoinWithdrawalFees', data=values, headers=headers)
+if args.dump:
+    print("WIP")
 
-response_body_json = urlopen(request).read()
-response_body = json.loads(response_body_json)
+if args.archive:
+    print("WIP")
 
-if isinstance(response_body["data"], dict):
-    low_fee = format(response_body["data"]["low"], '.8f')
-    high_fee = format(response_body["data"]["high"], '.8f')
-    print(f"""Current low fee is {low_fee}.
-    High priority fee is {high_fee}.""")
+if args.pairs:
+    # Requests all available currency pairs through coinmate api.
+    request = Request('https://coinmate.io/api/products')
 
+    # Returns value in json, make into string and dissect only "data" list containing currency pairs.
+    response_body_json = urlopen(request).read()
+    response_body = json.loads(response_body_json)
+    data = response_body["data"]
+
+    # Make returned pairs into list.
+    lspairs = [
+        i["id"] for i in data
+    ]
+
+    # Make list of pairs into enumerated dictionary.
+    dictpairs = {
+        i: lspairs[i] for i in range(0, len(lspairs))
+    }
+
+    # Return said dictionary in somewhat pretty form
+    for k, v in dictpairs.items():
+        print(k, " : ", v)
