@@ -141,9 +141,9 @@ if args.pairs:
     response_body = json.loads(response_body_json)
     data = response_body["data"]
 
-    # Make returned pairs into list.
+    # Make returned pairs into list. Replace dash with underscore for future usage.
     lspairs = [
-        i["id"] for i in data
+        i["id"].replace("-", "_") for i in data
     ]
 
     # Make list of pairs into enumerated dictionary.
