@@ -1,4 +1,3 @@
-
 from urllib.request import Request, urlopen
 from urllib.parse import urlencode
 import hmac
