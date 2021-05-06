@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import datetime
 from urllib.request import Request, urlopen
 from urllib.parse import urlencode
