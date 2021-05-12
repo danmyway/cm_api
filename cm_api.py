@@ -1,4 +1,5 @@
 import datetime
+import sys
 from urllib.request import Request, urlopen
 from urllib.parse import urlencode
 import hmac
@@ -8,6 +9,7 @@ import argparse
 import configparser
 import os
 import shutil
+
 
 cwd = os.getcwd()
 configfile = "config.yaml"
@@ -49,12 +51,15 @@ parser.add_argument(
 
 args = parser.parse_args()
 
+def xconf():
+    with open(configfile, "x") as conf:
+        conf.write("[DEFAULT]\napiKey = \nprivateKey = \nclientID = ")
+    print(f"Created an empty configuration file in {cwd}/{configfile}.")
 
 def startup():
     # Starts the program, creates configuration file
     try:
-        with open(configfile, "x") as conf:
-            conf.write("[DEFAULT]\napiKey = \nprivateKey = \nclientID = ")
+        xconf()
     except FileExistsError:
         print("Creating config file skipped. Config file already exists.")
         raise FileExistsError
@@ -103,10 +108,32 @@ def createSignature(clientId, apiKey, privateKey, nonce):
     signature = hmac.new(privateKey.encode("utf-8"), message.encode("utf-8"), digestmod=hashlib.sha256).hexdigest()
     return signature.upper()
 
+def archive():
+    try:
+        archpath = os.path.join(cwd, "config_archive")
+        os.mkdir(archpath)
+    except FileExistsError:
+        print(f"Skipping mkdir. Directory already exists.")
+        pass
+    now_raw = datetime.datetime.now()
+    now = now_raw.strftime("%Y-%m-%d_%H:%M:%S")
+    rename_config = f"{now:s}_{configfile}"
+    shutil.move(
+        configfile, os.path.join(
+            archpath, rename_config
+        )
+    )
+    print(f"Config file succesfully archived to {archpath}/{rename_config}")
+
+
+if len(sys.argv) <= 1:
+    print("Please use any of the available parameters.\nRefer to --help for valid options.")
+
 
 if args.initiate:
     try:
         startup()
+        log_count()
     except FileExistsError:
         print("Nothing to do! Configuration file already created.")
     else:
@@ -143,25 +170,34 @@ if args.fees:
         print(f"Current low fee is {low_fee}.\nHigh priority fee is {high_fee}.")
 
 if args.dump:
-    print("WIP")
+    # Check for existing --archive argument.
+    if args.archive:
+        print(f"Checking for {configfile} archivation....")
+    else:
+        affir = input(f"{configfile} has not been archived. \nWrite 'a' to archive current {configfile}"
+                      f"\nWrite 'yes' if you want to proceed without archiving.")
+        while True:
+            if affir.lower() == "a":
+                try:
+                    archive()
+                    break
+                except PermissionError:
+                    print(f"There might be problem with permissions in {cwd}!")
+            if affir.lower() == "yes":
+                xconf()
+                break
+            else:
+                print("Please input valid option!")
+
+
 
 
 if args.archive:
     try:
-        archpath = os.path.join(cwd, "config_archive")
-        os.mkdir(archpath)
-    except FileExistsError:
-        print(f"Skipping mkdir. Directory already exists.")
-        pass
-    now_raw = datetime.datetime.now()
-    now = now_raw.strftime("%Y-%m-%d_%H:%M:%S")
-    rename_config = f"{now:s}_{configfile}"
-    shutil.move(
-        configfile, os.path.join(
-            archpath, rename_config
-        )
-    )
-    print(f"Config file succesfully archived to {archpath}/{rename_config}")
+        archive()
+    except PermissionError:
+        print(f"There might be problem with permissions in {cwd}!")
+
 
 if args.pairs:
     # Requests all available currency pairs through coinmate api.
